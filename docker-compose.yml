@@ -1,0 +1,18 @@
+services:
+  backend:
+    build:
+      context: ./app/backend
+    image: forgeflow-backend:0.3
+    container_name: forgeflow-backend
+    ports:
+      - "3000:3000"
+    depends_on:
+    - postgres
+
+  postgres:
+    image: postgres:16
+    container_name: forgeflow-postgres
+    environment:
+      POSTGRES_USER: forgeflow
+      POSTGRES_PASSWORD: forgeflow_password
+      POSTGRES_DB: forgeflow
