@@ -4,8 +4,15 @@ services:
       context: ./app/backend
     image: forgeflow-backend:0.3
     container_name: forgeflow-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: forgeflow
+      DB_USER: forgeflow
+      DB_PASSWORD: forgeflow_password
     ports:
       - "3000:3000"
+    
     depends_on:
     - postgres
 
