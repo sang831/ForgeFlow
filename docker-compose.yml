@@ -15,6 +15,8 @@ services:
     
     depends_on:
     - postgres
+    networks:
+      - forgeflow-network
 
   postgres:
     image: postgres:16
@@ -23,3 +25,22 @@ services:
       POSTGRES_USER: forgeflow
       POSTGRES_PASSWORD: forgeflow_password
       POSTGRES_DB: forgeflow
+    ports:
+      - "5432:5432"
+    restart: always
+    networks:
+      - forgeflow-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgeflow -d forgeflow"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+networks:
+  forgeflow-network:
+    driver: bridge
+volumes:
+  postgres_data:
+    driver: local
