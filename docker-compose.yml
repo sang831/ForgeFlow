@@ -14,9 +14,16 @@ services:
       - "3000:3000"
     
     depends_on:
-    - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - forgeflow-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (response) => { if (response.statusCode !== 200) process.exit(1); })"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
 
   postgres:
     image: postgres:16
