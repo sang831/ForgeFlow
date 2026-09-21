@@ -1,7 +1,22 @@
 services:
+  jenkins:
+    build:
+      context: ./docker/jenkins
+    image: forgeflow-jenkins:latest
+    container_name: forgeflow-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - forgeflow-jenkins-home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - forgeflow-network
+
   backend:
     build:
-      context: ./app/backend
+      context: .
     image: forgeflow-backend:0.3
     container_name: forgeflow-backend
     environment:
@@ -12,12 +27,16 @@ services:
       DB_PASSWORD: forgeflow_password
     ports:
       - "3000:3000"
-    
     depends_on:
       postgres:
         condition: service_healthy
+      cache:
+        condition: service_started
     networks:
       - forgeflow-network
+    volumes:
+      - ./src:/app/src
+      - forgeflow-logs:/app/logs
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (response) => { if (response.statusCode !== 200) process.exit(1); })"]
       interval: 1m30s
@@ -38,16 +57,25 @@ services:
     networks:
       - forgeflow-network
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - forgeflow-db-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U forgeflow -d forgeflow"]
       interval: 1m30s
       timeout: 30s
       retries: 5
       start_period: 30s
+  cache:
+    image: redis:alpine
+    container_name: forgeflow-cache
+    ports:
+    - "6379:6379"
+    networks:
+    - forgeflow-network
+  
 networks:
   forgeflow-network:
     driver: bridge
 volumes:
-  postgres_data:
-    driver: local
+  forgeflow-db-data:
+  forgeflow-logs:
+  forgeflow-jenkins-home:

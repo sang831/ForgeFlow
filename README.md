@@ -27,8 +27,11 @@ Kubernetes
 ## Project Structure
 
 ```text
-app/        Application source code
-docker/     Docker configuration
-k8s/        Kubernetes manifests
-scripts/    Automation scripts
-docs/       Documentation
+src/               Node.js application source code
+tests/             Automated tests
+Dockerfile         Backend container image
+docker-compose.yml Local multi-service environment
+docker/            Docker-related configuration
+k8s/               Kubernetes manifests
+scripts/           Automation scripts
+docs/              Project documentation
