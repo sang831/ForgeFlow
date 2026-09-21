@@ -1,14 +1,11 @@
 pipeline {
-    agent any // Bắt buộc phải khai báo agent
-    
+    agent any
     stages {
         stage('Install Dependencies') {
             steps {
                 echo 'Bắt đầu cài đặt các gói thư viện...'
-                sh 'npm ci' 
+                bat 'npm ci' // Thay đổi 'sh' thành 'bat'
             }
         }
-        
-        // Bạn có thể thêm các stage khác ở đây như Build, Test, Deploy...
     }
 }
