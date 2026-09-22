@@ -49,28 +49,28 @@ pipeline {
         }
         stage('Login Docker Registry') {
             steps {
-                echo 'Đang xác thực với Docker Hub...'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    powershell '''
+                        $ErrorActionPreference = 'Stop'
 
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        powershell '''
-                            $ErrorActionPreference = 'Stop'
+                        $utf8 = New-Object System.Text.UTF8Encoding($false)
+                        [Console]::OutputEncoding = $utf8
+                        $OutputEncoding = $utf8
 
-                            if ([string]::IsNullOrWhiteSpace($env:DOCKER_USER) -or
-                                [string]::IsNullOrWhiteSpace($env:DOCKER_PASS)) {
-                                throw 'Credential dockerhub-creds không có username hoặc token.'
-                            }
+                        $env:DOCKER_PASS |
+                            docker login --username $env:DOCKER_USER --password-stdin
 
-                            $env:DOCKER_PASS | docker login `
-                                --username $env:DOCKER_USER `
-                                --password-stdin
-                        '''
-                    }
+                        if ($LASTEXITCODE -ne 0) {
+                            throw 'Docker Hub login failed.'
+                        }
+                    '''
                 }
             }
+        }
         stage('Push Image') {
             steps {
                 echo 'Đang đẩy Docker Image lên Docker Hub...'
