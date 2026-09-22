@@ -61,7 +61,7 @@ pipeline {
             steps {
                 echo 'Đang đẩy Docker Image lên Docker Hub...'
                 // Dùng lại thông tin đăng nhập để lấy DOCKER_USER
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                withCredentials([usernamePassword(credentialsId: '732004', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     
                     // 1. Đổi tên Image theo chuẩn của Docker Hub (cần dùng dấu ngoặc kép "")
                     bat "docker tag forgeflow:${env.BUILD_ID} %DOCKER_USER%/forgeflow:${env.BUILD_ID}"
