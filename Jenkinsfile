@@ -50,13 +50,27 @@ pipeline {
         stage('Login Docker Registry') {
             steps {
                 echo 'Đang xác thực với Docker Hub...'
-                // Lấy thông tin đăng nhập từ Credentials của Jenkins có ID là 'dockerhub-creds'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    // Dùng biến môi trường của Windows (%) để truyền user/pass an toàn
-                    bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        powershell '''
+                            $ErrorActionPreference = 'Stop'
+
+                            if ([string]::IsNullOrWhiteSpace($env:DOCKER_USER) -or
+                                [string]::IsNullOrWhiteSpace($env:DOCKER_PASS)) {
+                                throw 'Credential dockerhub-creds không có username hoặc token.'
+                            }
+
+                            $env:DOCKER_PASS | docker login `
+                                --username $env:DOCKER_USER `
+                                --password-stdin
+                        '''
+                    }
                 }
             }
-        }
         stage('Push Image') {
             steps {
                 echo 'Đang đẩy Docker Image lên Docker Hub...'
