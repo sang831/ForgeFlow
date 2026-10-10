@@ -1,8 +1,7 @@
 pipeline {
-    agent any 
+    agent any
 
     stages {
-        // --- GIAI ĐOẠN 1: Chuẩn bị ---
         stage('Checkout') {
             steps {
                 checkout scm
@@ -13,99 +12,97 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Bắt đầu cài đặt các gói thư viện...'
-                bat 'npm ci' // Hoặc 'npm install' tùy dự án của bạn
+                sh 'npm ci'
             }
         }
 
-        // --- GIAI ĐOẠN 2: Kiểm định Code ---
         stage('Lint and Code Quality') {
             steps {
                 echo 'Đang kiểm tra cú pháp code...'
-                // Bỏ comment dòng dưới nếu dự án có lệnh lint
-                // bat 'npm run lint' 
+                sh 'npm run lint'
             }
         }
 
         stage('Unit Test') {
             steps {
                 echo 'Đang chạy Unit Test...'
-                // Bỏ comment dòng dưới nếu dự án có test
-                // bat 'npm run test'
+                sh 'npm test'
             }
         }
-        // --- GIAI ĐOẠN 3: Build và Đóng gói ---
+
         stage('Build Docker Image') {
             steps {
                 echo 'Đang đóng gói ứng dụng Node.js thuần vào Docker Image...'
-                bat "docker build -t forgeflow:${env.BUILD_ID} -t forgeflow:latest ."
+                sh 'docker build -t forgeflow:${BUILD_ID} -t forgeflow:latest .'
             }
         }
+
         stage('Scan Docker Image') {
             steps {
                 echo 'Bắt đầu quét lỗ hổng bảo mật trên Docker Image...'
-                // Nếu đã cài Trivy, bạn dùng lệnh dưới đây (hiện tại tạm comment):
-                // bat "trivy image forgeflow:${env.BUILD_ID}"
+                sh 'trivy image --severity HIGH,CRITICAL --exit-code 1 forgeflow:${BUILD_ID}'
             }
         }
-        stage('Login Docker Registry') {
+
+        stage('Deploy / Smoke Test') {
             steps {
+                echo 'Bắt đầu chạy smoke test trong Docker network...'
+                sh '''
+                    set -eu
+
+                    docker rm -f forgeflow-test >/dev/null 2>&1 || true
+                    cleanup() {
+                        docker rm -f forgeflow-test >/dev/null 2>&1 || true
+                    }
+                    trap cleanup EXIT
+
+                    docker run -d \
+                        --name forgeflow-test \
+                        --network forgeflow-network \
+                        -e DB_HOST=postgres \
+                        -e DB_PORT=5432 \
+                        -e DB_NAME=forgeflow \
+                        -e DB_USER=forgeflow \
+                        -e DB_PASSWORD=forgeflow_password \
+                        forgeflow:${BUILD_ID}
+
+                    for attempt in $(seq 1 30); do
+                        status=$(docker inspect --format='{{.State.Health.Status}}' forgeflow-test 2>/dev/null || true)
+                        if [ "$status" = 'healthy' ]; then
+                            echo 'Health check passed.'
+                            exit 0
+                        fi
+                        if [ "$status" = 'unhealthy' ]; then
+                            docker logs forgeflow-test
+                            exit 1
+                        fi
+                        sleep 2
+                    done
+
+                    docker logs forgeflow-test
+                    echo 'Health check timed out.'
+                    exit 1
+                '''
+            }
+        }
+
+        stage('Login and Push Image') {
+            steps {
+                echo 'Đăng nhập và đẩy Docker Image lên Docker Hub...'
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    powershell '''
-                        $ErrorActionPreference = 'Stop'
-
-                        $utf8 = New-Object System.Text.UTF8Encoding($false)
-                        [Console]::OutputEncoding = $utf8
-                        $OutputEncoding = $utf8
-
-                        $env:DOCKER_PASS |
-                            docker login --username $env:DOCKER_USER --password-stdin
-
-                        if ($LASTEXITCODE -ne 0) {
-                            throw 'Docker Hub login failed.'
-                        }
+                    sh '''
+                        set -eu
+                        printf '%s' "$DOCKER_PASS" | docker login --username "$DOCKER_USER" --password-stdin
+                        docker tag forgeflow:${BUILD_ID} "$DOCKER_USER/forgeflow:${BUILD_ID}"
+                        docker tag forgeflow:latest "$DOCKER_USER/forgeflow:latest"
+                        docker push "$DOCKER_USER/forgeflow:${BUILD_ID}"
+                        docker push "$DOCKER_USER/forgeflow:latest"
                     '''
                 }
-            }
-        }
-        stage('Push Image') {
-            steps {
-                echo 'Đang đẩy Docker Image lên Docker Hub...'
-                // Dùng lại thông tin đăng nhập để lấy DOCKER_USER
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    
-                    // 1. Đổi tên Image theo chuẩn của Docker Hub (cần dùng dấu ngoặc kép "")
-                    bat "docker tag forgeflow:${env.BUILD_ID} %DOCKER_USER%/forgeflow:${env.BUILD_ID}"
-                    bat "docker tag forgeflow:latest %DOCKER_USER%/forgeflow:latest"
-
-                    // 2. Push Image lên Docker Hub
-                    bat "docker push %DOCKER_USER%/forgeflow:${env.BUILD_ID}"
-                    bat "docker push %DOCKER_USER%/forgeflow:latest"
-                }
-            }
-        }
-        stage('Deploy / Smoke Test') {
-            steps {
-                echo 'Bắt đầu chạy thử ứng dụng...'
-                
-                // 1. Xóa container cũ (nếu có) để tránh lỗi trùng tên hoặc trùng cổng
-                // (Thêm catchError để Jenkins không báo đỏ nếu không tìm thấy container cũ)
-                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                    bat 'docker rm -f forgeflow-test'
-                }
-
-                // 2. Chạy container mới ngầm (-d), đặt tên là forgeflow-test, map cổng 3000
-                bat 'docker run -d --name forgeflow-test -p 3000:3000 forgeflow:latest'
-                
-                // 3. Đợi 5 giây cho ứng dụng JS khởi động hẳn trên Windows
-                bat 'timeout /t 5 /nobreak > NUL'
-                
-                // 4. Gọi thử vào ứng dụng để kiểm tra nó có sống không (Lệnh curl có sẵn trên Windows 10/11)
-                echo 'Kiểm tra trạng thái (Health check) ứng dụng...'
-                bat 'curl http://localhost:3000'
             }
         }
     }

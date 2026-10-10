@@ -14,7 +14,7 @@ const pool = new Pool({
     password: process.env.DB_PASSWORD
 });
 
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {
     try {
         await pool.query("SELECT 1");
         res.json({
@@ -140,6 +140,10 @@ app.delete("/tasks/:id", async (req, res) => {
         });
     }
 });
-app.listen(PORT, () => {
-    console.log(`ForgeFlow backend running on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`ForgeFlow backend running on port ${PORT}`);
+    });
+}
+
+module.exports = { app, pool };
