@@ -17,7 +17,6 @@ USER jenkins
 
 RUN jenkins-plugin-cli --plugins \
     workflow-aggregator \
-    pipeline-groovy \
     git \
     credentials-binding \
     docker-workflow \

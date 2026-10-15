@@ -94,7 +94,7 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
+                    bat '''
                         set -eu
                         printf '%s' "$DOCKER_PASS" | docker login --username "$DOCKER_USER" --password-stdin
                         docker tag forgeflow:${BUILD_ID} "$DOCKER_USER/forgeflow:${BUILD_ID}"
